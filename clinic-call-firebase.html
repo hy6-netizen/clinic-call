@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>진료실 호출 시스템</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #f5f1ea;
+    --bg-card: #ffffff;
+    --bg-elevated: #fbfaf6;
+    --text: #1a1a1a;
+    --text-muted: #6b6b6b;
+    --text-subtle: #9a9a9a;
+    --accent: #2d5a4a;
+    --accent-light: #4a7c65;
+    --accent-pale: #e8efe9;
+    --border: #e5dfd3;
+    --border-soft: #efeae0;
+    --danger: #b94a4a;
+    --warn: #c08a3e;
+    --warn-pale: #f4ebd9;
+    --shadow: 0 4px 24px rgba(0,0,0,0.06);
+    --shadow-lg: 0 20px 60px rgba(0,0,0,0.08);
+  }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    font-family: 'Noto Sans KR', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .serif { font-family: 'Noto Serif KR', serif; }
+
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .screen.active { display: flex; }
+
+  /* ==================== 설정 화면 ==================== */
+  #setup-view { align-items: center; padding: 3rem 2rem; }
+  .setup-container { max-width: 560px; width: 100%; }
+  .setup-header { text-align: center; margin-bottom: 2.5rem; }
+  .setup-header .eyebrow {
+    font-size: 0.75rem; letter-spacing: 0.3em; color: var(--accent);
+    text-transform: uppercase; margin-bottom: 0.75rem; font-weight: 500;
+  }
+  .setup-header h1 {
+    font-family: 'Noto Serif KR', serif; font-size: 2rem;
+    font-weight: 500; letter-spacing: -0.02em;
+  }
+  .setup-header p { margin-top: 0.5rem; color: var(--text-muted); font-size: 0.95rem; }
+
+  .setup-step {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.75rem; margin-bottom: 1rem;
+  }
+  .step-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  .step-number {
+    width: 28px; height: 28px; background: var(--accent); color: white;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; font-weight: 500;
+  }
+  .step-title { font-family: 'Noto Serif KR', serif; font-size: 1.1rem; font-weight: 500; }
+  .step-body { font-size: 0.9rem; color: var(--text-muted); line-height: 1.7; }
+  .step-body ol { padding-left: 1.2rem; margin: 0.5rem 0; }
+  .step-body li { margin: 0.3rem 0; }
+
+  .setup-input, .setup-textarea {
+    width: 100%; padding: 0.85rem 1rem; border: 1.5px solid var(--border);
+    border-radius: 10px; font-family: inherit; font-size: 0.95rem;
+    background: var(--bg-elevated); color: var(--text); outline: none;
+    transition: border-color 0.2s ease;
+  }
+  .setup-textarea {
+    font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.8rem;
+    min-height: 140px; resize: vertical; line-height: 1.5;
+  }
+  .setup-input:focus, .setup-textarea:focus { border-color: var(--accent); }
+
+  .help-link {
+    margin-top: 0.75rem; color: var(--accent); font-size: 0.85rem;
+    cursor: pointer; text-decoration: underline; display: inline-block;
+  }
+  .help-detail {
+    display: none; margin-top: 0.75rem; padding: 1rem;
+    background: var(--bg-elevated); border-radius: 8px;
+    font-size: 0.85rem; line-height: 1.7;
+  }
+  .help-detail.show { display: block; }
+
+  .setup-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+  .btn-primary {
+    flex: 1; padding: 0.95rem; background: var(--accent); color: white;
+    border: none; border-radius: 10px; font-family: inherit;
+    font-weight: 500; font-size: 1rem; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-primary:hover { background: var(--accent-light); }
+
+  .error-msg { color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; display: none; }
+  .error-msg.show { display: block; }
+
+  /* ==================== 모드 선택 ==================== */
+  #mode-select { align-items: center; justify-content: center; padding: 2rem; }
+  .mode-header { text-align: center; margin-bottom: 3rem; }
+  .mode-header .eyebrow {
+    font-size: 0.75rem; letter-spacing: 0.3em; color: var(--accent);
+    text-transform: uppercase; margin-bottom: 1rem; font-weight: 500;
+  }
+  .mode-header h1 {
+    font-family: 'Noto Serif KR', serif;
+    font-size: clamp(2rem, 5vw, 3rem); font-weight: 500; letter-spacing: -0.02em;
+  }
+  .mode-header .room-info { margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted); }
+
+  .mode-cards {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1.25rem; max-width: 780px; width: 100%;
+  }
+  @media (max-width: 640px) { .mode-cards { grid-template-columns: 1fr; } }
+
+  .mode-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 2.5rem 2rem; text-align: left;
+    cursor: pointer; transition: all 0.25s ease;
+    font-family: inherit; color: inherit;
+    position: relative; overflow: hidden;
+  }
+  .mode-card::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 60%, var(--accent-pale));
+    opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+  }
+  .mode-card:hover {
+    transform: translateY(-3px); box-shadow: var(--shadow-lg);
+    border-color: var(--accent-light);
+  }
+  .mode-card:hover::after { opacity: 1; }
+
+  .mode-card .icon {
+    width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;
+    background: var(--accent-pale); border-radius: 12px;
+    margin-bottom: 1.25rem; color: var(--accent);
+  }
+  .mode-card h2 { font-family: 'Noto Serif KR', serif; font-size: 1.5rem; font-weight: 500; margin-bottom: 0.5rem; }
+  .mode-card p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; }
+
+  .mode-footer { margin-top: 2rem; font-size: 0.8rem; color: var(--text-subtle); text-align: center; }
+  .mode-footer a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+  /* ==================== 진료실 ==================== */
+  #doctor-view { padding: 2rem; max-width: 760px; margin: 0 auto; width: 100%; }
+
+  .doctor-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+  .brand { display: flex; align-items: center; gap: 0.75rem; }
+  .brand .dot {
+    width: 8px; height: 8px; background: var(--accent);
+    border-radius: 50%; animation: breathe 2.5s ease-in-out infinite;
+  }
+  .brand .dot.offline { background: var(--danger); animation: none; }
+  @keyframes breathe {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); }
+  }
+  .brand .title { font-family: 'Noto Serif KR', serif; font-size: 1.15rem; font-weight: 500; }
+  .brand .subtitle {
+    font-size: 0.75rem; color: var(--text-muted);
+    margin-left: 0.5rem; padding-left: 0.75rem; border-left: 1px solid var(--border);
+  }
+
+  .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+  .icon-btn {
+    width: 36px; height: 36px; border: 1px solid var(--border);
+    background: var(--bg-card); border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); transition: all 0.2s ease;
+  }
+  .icon-btn:hover { color: var(--accent); border-color: var(--accent-light); }
+
+  /* 호출중 카드 */
+  .active-call-card {
+    background: var(--warn-pale); border: 1px solid #e7d4a6;
+    border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.75rem;
+    display: none; align-items: center; justify-content: space-between; gap: 1rem;
+    animation: slideDown 0.3s ease;
+  }
+  .active-call-card.show { display: flex; }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .active-call-info { flex: 1; min-width: 0; }
+  .active-call-label {
+    font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--warn); font-weight: 600; margin-bottom: 0.25rem;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .active-call-label .pulse-dot {
+    width: 6px; height: 6px; background: var(--warn);
+    border-radius: 50%; animation: blink 1.4s ease-in-out infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  .active-call-name {
+    font-family: 'Noto Serif KR', serif; font-size: 1.6rem;
+    font-weight: 500; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .active-call-time { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+  .active-call-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+  .btn-checkin {
+    padding: 0.7rem 1.25rem; background: var(--accent); color: white;
+    border: none; border-radius: 9px; font-family: inherit;
+    font-size: 0.9rem; font-weight: 500; cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+  }
+  .btn-checkin:hover { background: var(--accent-light); transform: translateY(-1px); }
+
+  .btn-recall {
+    padding: 0.7rem 1rem; background: var(--bg-card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 9px;
+    font-family: inherit; font-size: 0.9rem; cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .btn-recall:hover { border-color: var(--accent); color: var(--accent); }
+
+  .call-section { margin-bottom: 2rem; }
+  .call-label {
+    font-size: 0.8rem; color: var(--text-muted);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 0.75rem; font-weight: 500;
+  }
+  .input-row { display: flex; gap: 0.75rem; align-items: stretch; }
+  #patient-input {
+    flex: 1; padding: 1.25rem 1.5rem; font-size: 1.5rem;
+    font-family: 'Noto Serif KR', serif;
+    border: 2px solid var(--border); border-radius: 12px;
+    background: var(--bg-card); color: var(--text); outline: none;
+    transition: border-color 0.2s ease;
+  }
+  #patient-input:focus { border-color: var(--accent); }
+  #patient-input::placeholder { color: var(--text-subtle); font-style: italic; }
+
+  .call-btn {
+    padding: 0 2rem; background: var(--accent); color: white;
+    border: none; border-radius: 12px; font-family: inherit;
+    font-size: 1.05rem; font-weight: 500; cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex; align-items: center; gap: 0.5rem; white-space: nowrap;
+  }
+  .call-btn:hover { background: var(--accent-light); transform: translateY(-1px); }
+  .call-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .input-hint { margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-subtle); }
+  kbd {
+    font-family: 'Noto Sans KR', monospace; background: var(--bg-card);
+    border: 1px solid var(--border); padding: 0.1rem 0.4rem;
+    border-radius: 4px; font-size: 0.75rem;
+  }
+
+  .history-section {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.75rem;
+  }
+  .history-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.25rem; }
+  .history-title { font-family: 'Noto Serif KR', serif; font-size: 1rem; font-weight: 500; }
+  .history-count { font-size: 0.8rem; color: var(--text-subtle); }
+
+  .history-list { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+  .history-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.75rem 1rem; background: var(--bg-elevated);
+    border: 1px solid transparent; border-radius: 10px;
+    cursor: pointer; transition: all 0.15s ease;
+  }
+  .history-item:hover { border-color: var(--accent-light); background: var(--accent-pale); }
+  .history-item .name { font-family: 'Noto Serif KR', serif; font-size: 1.05rem; font-weight: 500; }
+  .history-item .meta { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem; }
+
+  .status-pill {
+    font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 100px;
+    font-weight: 500; letter-spacing: 0.05em;
+  }
+  .status-pill.checked-in { background: var(--accent-pale); color: var(--accent); }
+  .status-pill.pending { background: var(--warn-pale); color: var(--warn); }
+
+  .recall-hint { opacity: 0; transition: opacity 0.2s ease; color: var(--accent); font-size: 0.78rem; }
+  .history-item:hover .recall-hint { opacity: 1; }
+
+  .history-empty { text-align: center; padding: 2rem 1rem; color: var(--text-subtle); font-size: 0.9rem; }
+
+  .toast {
+    position: fixed; bottom: 2rem; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--accent); color: white;
+    padding: 0.85rem 1.5rem; border-radius: 100px;
+    font-size: 0.9rem; box-shadow: var(--shadow-lg);
+    opacity: 0; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none; z-index: 100;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.error { background: var(--danger); }
+
+  /* ==================== 대기실 ==================== */
+  #waiting-view { background: var(--bg); }
+  .waiting-init {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 2rem;
+  }
+  .waiting-init h2 {
+    font-family: 'Noto Serif KR', serif;
+    font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 500; margin-bottom: 1rem;
+  }
+  .waiting-init p { color: var(--text-muted); margin-bottom: 2rem; max-width: 400px; line-height: 1.6; }
+
+  .start-btn {
+    padding: 1.1rem 3rem; background: var(--accent); color: white;
+    border: none; border-radius: 100px; font-family: inherit;
+    font-size: 1.05rem; font-weight: 500; cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 8px 24px rgba(45, 90, 74, 0.25);
+  }
+  .start-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(45, 90, 74, 0.3); }
+
+  .waiting-main {
+    flex: 1; display: none; flex-direction: column;
+    padding: 1.5rem 2rem; position: relative;
+  }
+  .waiting-main.active { display: flex; }
+  @media (max-width: 768px) { .waiting-main { padding: 1rem 1rem; } }
+
+  .waiting-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .waiting-brand {
+    font-family: 'Noto Serif KR', serif; font-size: 1rem; color: var(--text-muted);
+    display: flex; align-items: center; gap: 0.75rem;
+  }
+  .waiting-brand .dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
+
+  .waiting-clock { text-align: right; }
+  .waiting-clock .time {
+    font-family: 'Noto Serif KR', serif; font-size: 2rem;
+    font-weight: 400; letter-spacing: -0.01em; line-height: 1;
+  }
+  .waiting-clock .date { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+  .waiting-center {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; position: relative;
+  }
+
+  .idle-message {
+    font-family: 'Noto Serif KR', serif;
+    font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+    color: var(--text-subtle); font-weight: 300; line-height: 1.8;
+    animation: fadeIn 0.6s ease;
+  }
+  .idle-message.hidden { display: none; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .idle-message .ornament {
+    display: block; width: 40px; height: 1px;
+    background: var(--border); margin: 1.5rem auto;
+  }
+  .idle-message .sub {
+    font-family: 'Noto Sans KR', sans-serif; font-size: 0.95rem;
+    color: var(--text-subtle); margin-top: 0.5rem;
+  }
+
+  .current-call {
+    display: none; text-align: center;
+    animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .current-call.active { display: block; }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .call-eyebrow {
+    font-size: 0.85rem; letter-spacing: 0.4em; color: var(--accent);
+    text-transform: uppercase; font-weight: 500;
+    margin-bottom: 1.5rem; position: relative; display: inline-block;
+  }
+  .call-eyebrow::before, .call-eyebrow::after {
+    content: ''; position: absolute; top: 50%;
+    width: 30px; height: 1px; background: var(--accent); opacity: 0.4;
+  }
+  .call-eyebrow::before { right: calc(100% + 1rem); }
+  .call-eyebrow::after { left: calc(100% + 1rem); }
+
+  .patient-name {
+    font-family: 'Noto Serif KR', serif;
+    font-size: clamp(6rem, 28vw, 28rem);
+    font-weight: 500; letter-spacing: -0.03em; line-height: 1;
+    color: var(--text); margin-bottom: 1rem; word-break: keep-all;
+    white-space: nowrap;
+  }
+  .call-message {
+    font-family: 'Noto Serif KR', serif;
+    font-size: clamp(1.4rem, 3.5vw, 2.5rem);
+    color: var(--text-muted); font-weight: 400; letter-spacing: -0.01em;
+  }
+
+  .pulse-ring {
+    position: absolute; top: 50%; left: 50%;
+    width: 200px; height: 200px; border-radius: 50%;
+    border: 2px solid var(--accent);
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0; pointer-events: none;
+  }
+  .pulse-ring.animate { animation: pulseRing 1.2s ease-out; }
+  @keyframes pulseRing {
+    0% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.5); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(3); }
+  }
+
+  .waiting-bottom {
+    border-top: 1px solid var(--border-soft); padding-top: 1.5rem;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 2rem; min-height: 60px;
+  }
+  .previous-calls { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .previous-label {
+    font-size: 0.8rem; color: var(--text-subtle);
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .previous-names { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+  .previous-name { font-family: 'Noto Serif KR', serif; font-size: 1.05rem; color: var(--text-muted); }
+
+  .connection-indicator {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.75rem; color: var(--text-subtle);
+  }
+  .connection-indicator .dot {
+    width: 6px; height: 6px; background: #4ade80;
+    border-radius: 50%; box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+    transition: background 0.3s ease;
+  }
+  .connection-indicator .dot.offline {
+    background: var(--danger); box-shadow: 0 0 8px rgba(185, 74, 74, 0.5);
+  }
+
+  /* 모달 */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px); display: none;
+    align-items: center; justify-content: center;
+    z-index: 200; padding: 1rem;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--bg-card); padding: 2rem; border-radius: 16px;
+    width: 100%; max-width: 420px; box-shadow: var(--shadow-lg);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 1.25rem; font-weight: 500; margin-bottom: 1.5rem;
+  }
+  .setting-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 0; border-bottom: 1px solid var(--border-soft); gap: 1rem;
+  }
+  .setting-row:last-of-type { border-bottom: none; }
+  .setting-row label { font-size: 0.95rem; color: var(--text); white-space: nowrap; }
+  .setting-row input[type="range"] { width: 140px; accent-color: var(--accent); }
+  .setting-row select {
+    padding: 0.4rem 0.6rem; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg-card);
+    font-family: inherit; font-size: 0.85rem; max-width: 180px;
+  }
+  .modal-close {
+    margin-top: 1.5rem; width: 100%; padding: 0.85rem;
+    background: var(--accent); color: white; border: none;
+    border-radius: 10px; font-family: inherit;
+    font-weight: 500; cursor: pointer;
+  }
+  .modal-text-btn {
+    background: none; border: none; color: var(--accent);
+    cursor: pointer; font-family: inherit; font-size: 0.85rem;
+    text-decoration: underline; padding: 0.5rem 0;
+    margin-top: 0.5rem; display: block; width: 100%; text-align: center;
+  }
+
+  ::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+
+<!-- 설정 화면 -->
+<div id="setup-view" class="screen">
+  <div class="setup-container">
+    <div class="setup-header">
+      <div class="eyebrow">Initial Setup</div>
+      <h1 class="serif">Firebase 연결 설정</h1>
+      <p>최초 1회만 설정하면 됩니다. 두 기기 모두 같은 값으로 입력해주세요.</p>
+    </div>
+
+    <div class="setup-step">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <div class="step-title">Firebase 설정값</div>
+      </div>
+      <div class="step-body">
+        <p style="margin-bottom: 0.75rem;">Firebase 콘솔에서 복사한 <code>firebaseConfig</code> 전체를 아래에 붙여넣으세요.</p>
+        <textarea class="setup-textarea" id="firebase-config-input" placeholder='예시:
+const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "my-clinic.firebaseapp.com",
+  databaseURL: "https://my-clinic-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "my-clinic",
+  ...
+};'></textarea>
+        <span class="help-link" onclick="toggleHelp()">Firebase 설정 방법 안내 ▾</span>
+        <div class="help-detail" id="help-detail">
+          <ol>
+            <li><a href="https://console.firebase.google.com" target="_blank" style="color: var(--accent);">console.firebase.google.com</a> 접속 (구글 계정 필요)</li>
+            <li>"프로젝트 추가" → 이름 입력 (예: clinic-call) → Analytics는 끄셔도 됩니다</li>
+            <li>왼쪽 메뉴 "빌드" → "Realtime Database" → "데이터베이스 만들기"</li>
+            <li>위치는 <b>asia-southeast1</b> 선택 (싱가포르)</li>
+            <li>보안 규칙은 "<b>테스트 모드로 시작</b>" 선택</li>
+            <li>왼쪽 상단 톱니바퀴 ⚙️ → "프로젝트 설정" → 아래로 스크롤 → "앱 추가" → 웹 아이콘 <code>&lt;/&gt;</code></li>
+            <li>앱 닉네임 입력 후 등록 → 나오는 <code>const firebaseConfig = {...}</code> 블록 전체를 위에 붙여넣기</li>
+          </ol>
+        </div>
+        <p class="error-msg" id="config-error"></p>
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <div class="step-title">호출방 코드</div>
+      </div>
+      <div class="step-body">
+        <p style="margin-bottom: 0.75rem;">두 기기가 공유할 코드입니다 (예: <code>clinic1</code>, <code>1234</code>)</p>
+        <input type="text" class="setup-input" id="room-code-input" placeholder="예: clinic1" maxlength="20">
+      </div>
+    </div>
+
+    <div class="setup-actions">
+      <button class="btn-primary" onclick="saveSetup()">저장하고 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- 모드 선택 -->
+<div id="mode-select" class="screen">
+  <div class="mode-header">
+    <div class="eyebrow">Clinic Call System</div>
+    <h1 class="serif">진료실 호출 시스템</h1>
+    <div class="room-info">호출방: <b id="current-room-code">—</b></div>
+  </div>
+
+  <div class="mode-cards">
+    <button class="mode-card" onclick="setMode('doctor')">
+      <div class="icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M2 12h20"/>
+        </svg>
+      </div>
+      <h2>진료실 화면</h2>
+      <p>환자를 호출하고, 입실 후 체크하여 다음 환자를 부를 수 있습니다.</p>
+    </button>
+
+    <button class="mode-card" onclick="setMode('waiting')">
+      <div class="icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="14" rx="2"/>
+          <path d="M8 20h8M12 18v2"/>
+        </svg>
+      </div>
+      <h2>대기실 화면 (아이패드)</h2>
+      <p>호출된 환자 이름을 크게 표시하고, 음성 안내방송이 송출됩니다.</p>
+    </button>
+  </div>
+
+  <p class="mode-footer">Firebase로 실시간 동기화됩니다 · <a onclick="resetSetup()">설정 다시하기</a></p>
+</div>
+
+<!-- 진료실 화면 -->
+<div id="doctor-view" class="screen">
+  <div class="doctor-header">
+    <div class="brand">
+      <span class="dot" id="doctor-status-dot"></span>
+      <span class="title serif">진료실</span>
+      <span class="subtitle" id="doctor-status-text">연결중...</span>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="openSettings()" title="설정">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" onclick="goHome()" title="처음으로">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 호출 중인 환자 카드 -->
+  <div class="active-call-card" id="active-call-card">
+    <div class="active-call-info">
+      <div class="active-call-label">
+        <span class="pulse-dot"></span>
+        호출중
+      </div>
+      <div class="active-call-name" id="active-call-name">—</div>
+      <div class="active-call-time" id="active-call-time"></div>
+    </div>
+    <div class="active-call-actions">
+      <button class="btn-recall" onclick="recallCurrent()" title="다시 안내방송">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+        다시 호출
+      </button>
+      <button class="btn-checkin" onclick="checkInCurrent()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        입실 완료
+      </button>
+    </div>
+  </div>
+
+  <div class="call-section">
+    <div class="call-label">환자 호출</div>
+    <div class="input-row">
+      <input type="text" id="patient-input" placeholder="환자 성함을 입력하세요" autocomplete="off">
+      <button class="call-btn" id="call-btn" onclick="callPatient()">
+        호출하기
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+    </div>
+    <p class="input-hint"><kbd>Enter</kbd> 키로도 호출할 수 있습니다</p>
+  </div>
+
+  <div class="history-section">
+    <div class="history-header">
+      <span class="history-title">오늘의 호출 기록</span>
+      <span class="history-count" id="history-count">0건</span>
+    </div>
+    <ul class="history-list" id="history-list">
+      <li class="history-empty">아직 호출 기록이 없습니다</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 대기실 화면 -->
+<div id="waiting-view" class="screen">
+  <div class="waiting-init" id="waiting-init">
+    <h2>대기실 화면을 시작합니다</h2>
+    <p>브라우저 정책상 음성 안내를 사용하려면 시작 버튼을 한 번 눌러주셔야 합니다.</p>
+    <button class="start-btn" onclick="initWaiting()">시작하기</button>
+  </div>
+
+  <div class="waiting-main" id="waiting-main">
+    <div class="waiting-top">
+      <div class="waiting-brand">
+        <span class="dot"></span>
+        <span>진료 안내</span>
+      </div>
+      <div class="waiting-clock">
+        <div class="time" id="clock-time">--:--</div>
+        <div class="date" id="clock-date">--월 --일</div>
+      </div>
+    </div>
+
+    <div class="waiting-center">
+      <div class="idle-message" id="idle-message">
+        잠시만 기다려 주세요
+        <span class="ornament"></span>
+        <span class="sub">호출 시 이 화면에 성함이 표시됩니다</span>
+      </div>
+
+      <div class="current-call" id="current-call">
+        <div class="call-eyebrow">호출</div>
+        <div class="patient-name serif" id="patient-name">—</div>
+        <div class="call-message serif">님, 진료실로 들어오세요</div>
+      </div>
+
+      <div class="pulse-ring" id="pulse-ring"></div>
+    </div>
+
+    <div class="waiting-bottom">
+      <div class="previous-calls">
+        <span class="previous-label">이전 호출</span>
+        <div class="previous-names" id="previous-names">
+          <span style="color: var(--text-subtle); font-size: 0.85rem;">—</span>
+        </div>
+      </div>
+      <div class="connection-indicator">
+        <span class="dot" id="waiting-status-dot"></span>
+        <span id="waiting-status-text">연결중...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div class="modal-backdrop" id="settings-modal">
+  <div class="modal">
+    <h3>음성 설정</h3>
+    <div class="setting-row">
+      <label for="voice-rate">음성 속도</label>
+      <input type="range" id="voice-rate" min="0.6" max="1.2" step="0.05" value="0.85">
+    </div>
+    <div class="setting-row">
+      <label for="voice-select">음성</label>
+      <select id="voice-select"><option>로딩중...</option></select>
+    </div>
+    <div class="setting-row">
+      <label>테스트</label>
+      <button class="icon-btn" onclick="testVoice()" style="width: auto; padding: 0 0.75rem; gap: 0.4rem;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+        <span style="font-size: 0.8rem;">재생</span>
+      </button>
+    </div>
+    <button class="modal-close" onclick="closeSettings()">완료</button>
+    <button class="modal-text-btn" onclick="resetSetup()">Firebase 설정 다시하기</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  const STORAGE_KEY = 'clinic-history-v3';
+  const SETTINGS_KEY = 'clinic-settings-v3';
+  const CONFIG_KEY = 'clinic-firebase-config';
+  const ROOM_KEY = 'clinic-room-code';
+
+  let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  let settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{"rate":0.85,"voiceName":null}');
+  let koreanVoices = [];
+  let db = null;
+  let roomCode = localStorage.getItem(ROOM_KEY);
+  let subscribeTime = 0;
+  let recentCalls = [];
+  let clockTimer = null;
+  let currentCallData = null;
+  let lastProcessedCallId = null;
+
+  // 날짜가 바뀌면 history 초기화
+  const today = new Date().toDateString();
+  const lastDay = localStorage.getItem('clinic-last-day');
+  if (lastDay && lastDay !== today) {
+    history = [];
+    localStorage.setItem(STORAGE_KEY, '[]');
+  }
+  localStorage.setItem('clinic-last-day', today);
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+  window.showScreen = showScreen;
+
+  function boot() {
+    const configStr = localStorage.getItem(CONFIG_KEY);
+    if (configStr && roomCode) {
+      try {
+        const config = JSON.parse(configStr);
+        initFirebase(config);
+        document.getElementById('current-room-code').textContent = roomCode;
+        showScreen('mode-select');
+      } catch (e) {
+        showScreen('setup-view');
+      }
+    } else {
+      showScreen('setup-view');
+    }
+  }
+
+  function initFirebase(config) {
+    const app = initializeApp(config);
+    db = getDatabase(app);
+  }
+
+  // ==================== 설정 ====================
+  window.toggleHelp = function() {
+    document.getElementById('help-detail').classList.toggle('show');
+  };
+
+  function parseFirebaseConfig(text) {
+    if (!text) return null;
+    text = text.trim();
+
+    // 0. 그대로 JSON 파싱 시도
+    try { return JSON.parse(text); } catch (e) {}
+
+    // 1. 스마트 따옴표를 일반 따옴표로 변환
+    text = text.replace(/[\u201C\u201D\u2033]/g, '"').replace(/[\u2018\u2019\u2032]/g, "'");
+
+    // 2. 마크다운 링크 [텍스트](URL) → 텍스트로 변환
+    //    (텍스트박스에 붙여넣을 때 자동 변환되는 경우 처리)
+    text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+    // 3. firebaseConfig 객체만 추출 (가장 큰 중괄호 블록)
+    let depth = 0, start = -1, end = -1;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '{') {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (text[i] === '}') {
+        depth--;
+        if (depth === 0) { end = i; break; }
+      }
+    }
+    if (start === -1 || end === -1) return null;
+
+    let str = text.substring(start, end + 1);
+
+    // 4. 문자열 바깥의 주석만 제거 (문자열 내부의 //는 보존)
+    str = stripCommentsOutsideStrings(str);
+
+    // 5. 키에 따옴표 붙이기 (이미 있으면 그대로)
+    str = str.replace(/([{,]\s*)([a-zA-Z_$][\w$]*)\s*:/g, '$1"$2":');
+
+    // 6. 작은따옴표로 감싼 값 → 큰따옴표 (문자열 내부 처리)
+    str = convertSingleQuotesToDouble(str);
+
+    // 7. 후행 콤마 제거
+    str = str.replace(/,(\s*[}\]])/g, '$1');
+
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      console.error('Firebase config parse error:', e, '\nProcessed:', str);
+      return null;
+    }
+  }
+
+  // 문자열 내부가 아닌 곳에 있는 주석만 제거
+  function stripCommentsOutsideStrings(str) {
+    let result = '';
+    let i = 0;
+    let inString = false;
+    let stringChar = '';
+
+    while (i < str.length) {
+      const c = str[i];
+      const next = str[i + 1];
+
+      if (inString) {
+        if (c === '\\' && i + 1 < str.length) {
+          result += c + str[i + 1];
+          i += 2;
+          continue;
+        }
+        if (c === stringChar) {
+          inString = false;
+        }
+        result += c;
+        i++;
+      } else {
+        // 블록 주석
+        if (c === '/' && next === '*') {
+          const end = str.indexOf('*/', i + 2);
+          if (end === -1) break;
+          i = end + 2;
+          continue;
+        }
+        // 줄 주석
+        if (c === '/' && next === '/') {
+          const end = str.indexOf('\n', i + 2);
+          i = end === -1 ? str.length : end;
+          continue;
+        }
+        // 문자열 시작
+        if (c === '"' || c === "'") {
+          inString = true;
+          stringChar = c;
+        }
+        result += c;
+        i++;
+      }
+    }
+    return result;
+  }
+
+  // 작은따옴표로 감싼 문자열을 큰따옴표로 안전하게 변환
+  function convertSingleQuotesToDouble(str) {
+    let result = '';
+    let i = 0;
+    let inDouble = false;
+
+    while (i < str.length) {
+      const c = str[i];
+      if (c === '"' && str[i - 1] !== '\\') {
+        inDouble = !inDouble;
+        result += c;
+        i++;
+        continue;
+      }
+      if (c === "'" && !inDouble) {
+        // 다음 작은따옴표까지 찾아 큰따옴표로 변환
+        let end = i + 1;
+        while (end < str.length) {
+          if (str[end] === "'" && str[end - 1] !== '\\') break;
+          end++;
+        }
+        const inner = str.substring(i + 1, end).replace(/"/g, '\\"');
+        result += '"' + inner + '"';
+        i = end + 1;
+        continue;
+      }
+      result += c;
+      i++;
+    }
+    return result;
+  }
+
+  window.saveSetup = function() {
+    const configText = document.getElementById('firebase-config-input').value;
+    const room = document.getElementById('room-code-input').value.trim();
+    const errorEl = document.getElementById('config-error');
+
+    const config = parseFirebaseConfig(configText);
+    if (!config) {
+      errorEl.textContent = 'Firebase 설정값을 읽을 수 없습니다. 코드 전체(중괄호 포함)를 복사했는지 확인해주세요.';
+      errorEl.classList.add('show');
+      return;
+    }
+    if (!config.apiKey) {
+      errorEl.textContent = 'apiKey가 없습니다. firebaseConfig 전체를 복사하셨는지 확인해주세요.';
+      errorEl.classList.add('show');
+      return;
+    }
+    if (!config.databaseURL) {
+      errorEl.textContent = 'databaseURL이 없습니다. Firebase 콘솔에서 Realtime Database를 만든 후 firebaseConfig를 다시 가져오세요.';
+      errorEl.classList.add('show');
+      return;
+    }
+    if (!room) {
+      errorEl.textContent = '호출방 코드를 입력해주세요.';
+      errorEl.classList.add('show');
+      return;
+    }
+    errorEl.classList.remove('show');
+
+    try {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+      localStorage.setItem(ROOM_KEY, room);
+      roomCode = room;
+      initFirebase(config);
+      document.getElementById('current-room-code').textContent = room;
+      showScreen('mode-select');
+      showToast('설정이 저장되었습니다');
+    } catch (e) {
+      errorEl.textContent = 'Firebase 연결 실패: ' + e.message;
+      errorEl.classList.add('show');
+    }
+  };
+
+  window.resetSetup = function() {
+    if (!confirm('Firebase 설정을 다시 하시겠습니까?')) return;
+    localStorage.removeItem(CONFIG_KEY);
+    localStorage.removeItem(ROOM_KEY);
+    closeSettings();
+    location.reload();
+  };
+
+  window.setMode = function(mode) {
+    if (mode === 'doctor') {
+      showScreen('doctor-view');
+      setupDoctor();
+    } else {
+      showScreen('waiting-view');
+    }
+  };
+
+  window.goHome = function() {
+    if (!confirm('처음 화면으로 돌아가시겠습니까?')) return;
+    showScreen('mode-select');
+  };
+
+  function showToast(text, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = text;
+    t.classList.toggle('error', isError);
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+  window.showToast = showToast;
+
+  function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function formatTime(ts) {
+    const d = new Date(ts);
+    const h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const ampm = h < 12 ? '오전' : '오후';
+    const hh = h % 12 || 12;
+    return `${ampm} ${hh}:${m}`;
+  }
+
+  // ==================== 진료실 ====================
+  function setupDoctor() {
+    const input = document.getElementById('patient-input');
+    setTimeout(() => input.focus(), 100);
+    renderHistory();
+
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') callPatient();
+    };
+
+    onValue(ref(db, '.info/connected'), (snap) => {
+      const dot = document.getElementById('doctor-status-dot');
+      const text = document.getElementById('doctor-status-text');
+      const btn = document.getElementById('call-btn');
+      if (snap.val() === true) {
+        dot.classList.remove('offline');
+        text.textContent = '연결됨';
+        btn.disabled = false;
+      } else {
+        dot.classList.add('offline');
+        text.textContent = '연결 끊김';
+        btn.disabled = true;
+      }
+    });
+
+    // 호출중인 환자 카드 동기화
+    onValue(ref(db, `rooms/${roomCode}/current`), (snap) => {
+      const data = snap.val();
+      const card = document.getElementById('active-call-card');
+      if (data && data.name) {
+        currentCallData = data;
+        document.getElementById('active-call-name').textContent = data.name;
+        document.getElementById('active-call-time').textContent = formatTime(data.timestamp) + ' 호출';
+        card.classList.add('show');
+      } else {
+        currentCallData = null;
+        card.classList.remove('show');
+      }
+    });
+  }
+
+  window.callPatient = function() {
+    const input = document.getElementById('patient-input');
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+
+    if (!db) { showToast('Firebase 연결 오류', true); return; }
+
+    const entry = {
+      name,
+      timestamp: Date.now(),
+      id: Math.random().toString(36).slice(2),
+      checkedIn: false
+    };
+
+    set(ref(db, `rooms/${roomCode}/current`), entry)
+      .then(() => {
+        history.unshift({ ...entry });
+        history = history.slice(0, 30);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+        renderHistory();
+        input.value = '';
+        input.focus();
+        showToast(`${name}님을 호출했습니다`);
+      })
+      .catch((err) => {
+        showToast('전송 실패: ' + err.message, true);
+      });
+  };
+
+  window.recallCurrent = function() {
+    if (!currentCallData) return;
+    const entry = {
+      ...currentCallData,
+      timestamp: Date.now(),
+      id: Math.random().toString(36).slice(2)
+    };
+    set(ref(db, `rooms/${roomCode}/current`), entry)
+      .then(() => showToast(`${entry.name}님을 다시 호출했습니다`))
+      .catch((err) => showToast('전송 실패: ' + err.message, true));
+  };
+
+  window.checkInCurrent = function() {
+    if (!currentCallData) return;
+    const checkedName = currentCallData.name;
+    const checkedId = currentCallData.id;
+
+    remove(ref(db, `rooms/${roomCode}/current`))
+      .then(() => {
+        // 히스토리에서 입실 표시 (가장 최근 매칭 환자)
+        const idx = history.findIndex(h => h.name === checkedName && !h.checkedIn);
+        if (idx >= 0) {
+          history[idx].checkedIn = true;
+          history[idx].checkedInAt = Date.now();
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+          renderHistory();
+        }
+        document.getElementById('patient-input').focus();
+        showToast(`${checkedName}님 입실 완료`);
+      })
+      .catch((err) => showToast('처리 실패: ' + err.message, true));
+  };
+
+  window.recallPatient = function(name) {
+    document.getElementById('patient-input').value = name;
+    document.getElementById('patient-input').focus();
+  };
+
+  function renderHistory() {
+    const list = document.getElementById('history-list');
+    const count = document.getElementById('history-count');
+    if (!list) return;
+
+    if (history.length === 0) {
+      list.innerHTML = '<li class="history-empty">아직 호출 기록이 없습니다</li>';
+      count.textContent = '0건';
+      return;
+    }
+
+    const checkedCount = history.filter(h => h.checkedIn).length;
+    count.textContent = `${history.length}건 · 입실 ${checkedCount}명`;
+
+    list.innerHTML = history.slice(0, 15).map(h => `
+      <li class="history-item" onclick="recallPatient('${h.name.replace(/'/g, "\\'")}')">
+        <span class="name">${escapeHtml(h.name)}</span>
+        <span class="meta">
+          <span class="status-pill ${h.checkedIn ? 'checked-in' : 'pending'}">
+            ${h.checkedIn ? '입실' : '호출'}
+          </span>
+          <span>${formatTime(h.timestamp)}</span>
+          <span class="recall-hint">이름 채우기 →</span>
+        </span>
+      </li>
+    `).join('');
+  }
+
+  // ==================== 대기실 ====================
+  window.initWaiting = function() {
+    const warmup = new SpeechSynthesisUtterance(' ');
+    warmup.volume = 0;
+    speechSynthesis.speak(warmup);
+
+    document.getElementById('waiting-init').style.display = 'none';
+    document.getElementById('waiting-main').classList.add('active');
+
+    startClock();
+    loadVoices();
+
+    // 화면 크기/회전 변경 시 이름 크기 재조정
+    window.addEventListener('resize', () => {
+      clearTimeout(window._fitTimer);
+      window._fitTimer = setTimeout(fitNameToScreen, 100);
+    });
+
+    subscribeTime = Date.now();
+
+    onValue(ref(db, `rooms/${roomCode}/current`), (snap) => {
+      const data = snap.val();
+      if (!data) {
+        // 입실 처리됨 → idle 화면으로
+        clearWaitingDisplay();
+        return;
+      }
+
+      // 페이지 재로드 시 이전 데이터 무음 처리
+      if (data.timestamp <= subscribeTime - 3000) {
+        if (data.id !== lastProcessedCallId) {
+          displayCall(data.name, false);
+          lastProcessedCallId = data.id;
+        }
+        return;
+      }
+
+      // 새 호출만 처리
+      if (data.id === lastProcessedCallId) return;
+      lastProcessedCallId = data.id;
+      displayCall(data.name, true);
+      speakCall(data.name);
+    });
+
+    onValue(ref(db, '.info/connected'), (snap) => {
+      const dot = document.getElementById('waiting-status-dot');
+      const text = document.getElementById('waiting-status-text');
+      if (snap.val() === true) {
+        dot.classList.remove('offline');
+        text.textContent = '진료실 연결됨';
+      } else {
+        dot.classList.add('offline');
+        text.textContent = '연결 끊김';
+      }
+    });
+  };
+
+  function startClock() {
+    const update = () => {
+      const now = new Date();
+      const h = now.getHours();
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const ampm = h < 12 ? '오전' : '오후';
+      const hh = h % 12 || 12;
+      document.getElementById('clock-time').textContent = `${ampm} ${hh}:${m}`;
+
+      const month = now.getMonth() + 1;
+      const date = now.getDate();
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      document.getElementById('clock-date').textContent =
+        `${month}월 ${date}일 ${days[now.getDay()]}요일`;
+    };
+    update();
+    if (clockTimer) clearInterval(clockTimer);
+    clockTimer = setInterval(update, 1000);
+  }
+
+  function displayCall(name, isPulse) {
+    const nameEl = document.getElementById('patient-name');
+    const prevName = nameEl.textContent;
+    if (prevName && prevName !== '—' && prevName !== name) {
+      recentCalls.unshift(prevName);
+      recentCalls = recentCalls.slice(0, 3);
+      renderPrevious();
+    }
+
+    document.getElementById('idle-message').classList.add('hidden');
+    const callCard = document.getElementById('current-call');
+    callCard.classList.remove('active');
+    nameEl.textContent = name;
+
+    void callCard.offsetWidth;
+    callCard.classList.add('active');
+
+    // 이름이 화면에 꽉 차도록 글자 크기 조정
+    requestAnimationFrame(() => {
+      fitNameToScreen();
+      // 폰트 로딩이 늦을 수 있어서 한 번 더
+      setTimeout(fitNameToScreen, 100);
+    });
+
+    if (isPulse) {
+      const ring = document.getElementById('pulse-ring');
+      ring.classList.remove('animate');
+      void ring.offsetWidth;
+      ring.classList.add('animate');
+    }
+  }
+
+  // 이름이 대기실 화면을 거의 꽉 채우도록 동적으로 글자 크기 조정
+  function fitNameToScreen() {
+    const nameEl = document.getElementById('patient-name');
+    const center = document.querySelector('.waiting-center');
+    if (!nameEl || !center) return;
+    if (!nameEl.textContent || nameEl.textContent === '—') return;
+
+    // 사용 가능한 공간 계산 (호출 라벨과 안내 문구를 위한 여유 공간 확보)
+    const containerWidth = center.clientWidth * 0.96;
+    const containerHeight = center.clientHeight * 0.7;
+    const maxFontSize = Math.min(containerWidth, containerHeight, 600);
+
+    // 큰 크기에서 시작해서 줄여나감
+    let fontSize = maxFontSize;
+    nameEl.style.fontSize = fontSize + 'px';
+
+    let iter = 0;
+    while (
+      (nameEl.scrollWidth > containerWidth || nameEl.scrollHeight > containerHeight)
+      && fontSize > 60 && iter < 100
+    ) {
+      fontSize *= 0.95;
+      nameEl.style.fontSize = fontSize + 'px';
+      iter++;
+    }
+  }
+
+  function clearWaitingDisplay() {
+    const callCard = document.getElementById('current-call');
+    if (!callCard.classList.contains('active')) return;
+
+    const nameEl = document.getElementById('patient-name');
+    const prevName = nameEl.textContent;
+    if (prevName && prevName !== '—') {
+      recentCalls.unshift(prevName);
+      recentCalls = recentCalls.slice(0, 3);
+      renderPrevious();
+    }
+
+    callCard.classList.remove('active');
+    nameEl.textContent = '—';
+    nameEl.style.fontSize = ''; // 다음 호출을 위해 크기 리셋
+    document.getElementById('idle-message').classList.remove('hidden');
+    lastProcessedCallId = null;
+  }
+
+  function renderPrevious() {
+    const container = document.getElementById('previous-names');
+    if (recentCalls.length === 0) {
+      container.innerHTML = '<span style="color: var(--text-subtle); font-size: 0.85rem;">—</span>';
+      return;
+    }
+    container.innerHTML = recentCalls.map(n =>
+      `<span class="previous-name">${escapeHtml(n)}</span>`
+    ).join('');
+  }
+
+  // ==================== 음성 ====================
+  function loadVoices() {
+    const voices = speechSynthesis.getVoices();
+    koreanVoices = voices.filter(v => v.lang === 'ko-KR' || v.lang.startsWith('ko'));
+
+    const select = document.getElementById('voice-select');
+    if (!select) return;
+
+    if (koreanVoices.length === 0) {
+      select.innerHTML = '<option>사용 가능한 한국어 음성 없음</option>';
+      return;
+    }
+
+    select.innerHTML = koreanVoices.map(v =>
+      `<option value="${v.name}" ${v.name === settings.voiceName ? 'selected' : ''}>${v.name}</option>`
+    ).join('');
+
+    select.onchange = (e) => {
+      settings.voiceName = e.target.value;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    };
+
+    if (!settings.voiceName) {
+      settings.voiceName = koreanVoices[0].name;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    }
+  }
+
+  function speakCall(name) {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+
+    // 이름 글자 사이에 쉼표를 넣어서 또박또박 천천히 읽히게 함
+    // 예: "홍길동" → "홍, 길, 동"
+    const spacedName = Array.from(name).join(', ');
+    const text = `${spacedName}, 님, 진료실로 들어오세요.`;
+
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ko-KR';
+    u.rate = parseFloat(settings.rate || 0.85);
+    u.pitch = 1;
+    const voice = koreanVoices.find(v => v.name === settings.voiceName);
+    if (voice) u.voice = voice;
+    speechSynthesis.speak(u);
+  }
+
+  window.testVoice = function() { speakCall('홍길동'); };
+
+  if ('speechSynthesis' in window) {
+    speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+    setTimeout(loadVoices, 500);
+  }
+
+  // ==================== 모달 ====================
+  window.openSettings = function() {
+    loadVoices();
+    const rate = document.getElementById('voice-rate');
+    rate.value = settings.rate;
+    rate.oninput = (e) => {
+      settings.rate = parseFloat(e.target.value);
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    };
+    document.getElementById('settings-modal').classList.add('show');
+  };
+
+  window.closeSettings = function() {
+    document.getElementById('settings-modal').classList.remove('show');
+  };
+
+  boot();
+</script>
+</body>
+</html>
