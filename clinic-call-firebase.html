@@ -776,6 +776,7 @@ const firebaseConfig = {
   let clockTimer = null;
   let currentCallData = null;
   let lastProcessedCallId = null;
+  let audioCtx = null; // 띵동 차임용 AudioContext
 
   // 날짜가 바뀌면 history 초기화
   const today = new Date().toDateString();
@@ -1174,9 +1175,20 @@ const firebaseConfig = {
 
   // ==================== 대기실 ====================
   window.initWaiting = function() {
+    // 음성 합성 워밍업
     const warmup = new SpeechSynthesisUtterance(' ');
     warmup.volume = 0;
     speechSynthesis.speak(warmup);
+
+    // 띵동 차임용 AudioContext 활성화 (사용자 제스처로 생성)
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new Ctx();
+      // iOS 사파리 등에서 정지 상태일 수 있어 명시적으로 재개
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) {
+      console.warn('AudioContext 생성 실패:', e);
+    }
 
     document.getElementById('waiting-init').style.display = 'none';
     document.getElementById('waiting-main').classList.add('active');
@@ -1366,22 +1378,71 @@ const firebaseConfig = {
     }
   }
 
+  // 띵동 차임 재생 — A5(880Hz) → D5(587.33Hz), 사인파, envelope 적용
+  // 반환값: 차임이 끝나는 데까지 걸리는 시간(ms) — 이후 음성 시작 타이밍 계산용
+  function playChime() {
+    if (!audioCtx) return 0;
+    if (audioCtx.state === 'suspended') {
+      try { audioCtx.resume(); } catch (e) {}
+    }
+
+    const now = audioCtx.currentTime;
+    const noteDuration = 0.35;   // 각 음의 길이(초)
+    const noteGap = 0.05;        // 띵과 동 사이 짧은 간격(초)
+    const peakVolume = 0.25;     // 음량 (0~1)
+
+    const playNote = (frequency, startTime) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.value = frequency;
+
+      // Envelope: 빠른 attack, 부드러운 decay (종 같은 느낌)
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(peakVolume, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + noteDuration + 0.05);
+    };
+
+    // 띵 (A5)
+    playNote(880, now);
+    // 동 (D5) — 첫 음이 끝날 때쯤 시작
+    playNote(587.33, now + noteDuration + noteGap);
+
+    // 전체 차임 길이 = 두 음 + 갭, 약 750ms
+    return Math.round((noteDuration * 2 + noteGap) * 1000);
+  }
+
   function speakCall(name) {
     if (!('speechSynthesis' in window)) return;
     speechSynthesis.cancel();
 
+    // 1) 띵동 차임 먼저 재생
+    const chimeDuration = playChime();
+
+    // 2) 차임이 끝난 뒤 짧은 갭을 두고 음성 안내 시작
+    const gapAfterChime = 300; // 0.3초
+    const speechDelay = chimeDuration + gapAfterChime;
+
     // 이름 글자 사이에 쉼표를 넣어서 또박또박 천천히 읽히게 함
-    // 예: "홍길동" → "홍, 길, 동"
     const spacedName = Array.from(name).join(', ');
     const text = `${spacedName}, 님, 진료실로 들어오세요.`;
 
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ko-KR';
-    u.rate = parseFloat(settings.rate || 0.85);
-    u.pitch = 1;
-    const voice = koreanVoices.find(v => v.name === settings.voiceName);
-    if (voice) u.voice = voice;
-    speechSynthesis.speak(u);
+    setTimeout(() => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ko-KR';
+      u.rate = parseFloat(settings.rate || 0.85);
+      u.pitch = 1;
+      const voice = koreanVoices.find(v => v.name === settings.voiceName);
+      if (voice) u.voice = voice;
+      speechSynthesis.speak(u);
+    }, speechDelay);
   }
 
   window.testVoice = function() { speakCall('홍길동'); };
