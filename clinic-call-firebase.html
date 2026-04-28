@@ -1180,15 +1180,8 @@ const firebaseConfig = {
     warmup.volume = 0;
     speechSynthesis.speak(warmup);
 
-    // 띵동 차임용 AudioContext 활성화 (사용자 제스처로 생성)
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      audioCtx = new Ctx();
-      // iOS 사파리 등에서 정지 상태일 수 있어 명시적으로 재개
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    } catch (e) {
-      console.warn('AudioContext 생성 실패:', e);
-    }
+    // 띵동 차임용 AudioContext 활성화 (사용자 제스처로 생성해야 함)
+    ensureAudioContext();
 
     document.getElementById('waiting-init').style.display = 'none';
     document.getElementById('waiting-main').classList.add('active');
@@ -1378,71 +1371,79 @@ const firebaseConfig = {
     }
   }
 
-  // 띵동 차임 재생 — A5(880Hz) → D5(587.33Hz), 사인파, envelope 적용
-  // 반환값: 차임이 끝나는 데까지 걸리는 시간(ms) — 이후 음성 시작 타이밍 계산용
+  // 띵동 차임 — 두 음을 살짝 겹치게 재생 (벨 느낌), 총 약 0.75초
+  // 첨부파일과 동일한 방식. 음성과 비슷한 체감 음량을 위해 gain을 0.4로 설정
   function playChime() {
-    if (!audioCtx) return 0;
-    if (audioCtx.state === 'suspended') {
-      try { audioCtx.resume(); } catch (e) {}
+    return new Promise((resolve) => {
+      try {
+        const ctx = ensureAudioContext();
+        if (!ctx) { resolve(); return; }
+        const now = ctx.currentTime;
+
+        // 두 음: A5(880Hz) → D5(587.33Hz), 두 번째 음이 첫 음 끝나기 전 시작
+        const tones = [
+          { freq: 880,    start: 0,    duration: 0.45 },
+          { freq: 587.33, start: 0.18, duration: 0.55 }
+        ];
+
+        const peakVolume = 0.4; // 음성과 비슷한 체감 음량
+
+        tones.forEach(t => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(t.freq, now + t.start);
+          // 빠른 attack + 부드러운 decay (벨 느낌)
+          gain.gain.setValueAtTime(0, now + t.start);
+          gain.gain.linearRampToValueAtTime(peakVolume, now + t.start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0008, now + t.start + t.duration);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now + t.start);
+          osc.stop(now + t.start + t.duration);
+        });
+
+        // 차임 끝나고 resolve (총 약 750ms)
+        setTimeout(resolve, 780);
+      } catch (e) {
+        resolve();
+      }
+    });
+  }
+
+  function ensureAudioContext() {
+    if (!audioCtx) {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) return null;
+      audioCtx = new Ctor();
     }
-
-    const now = audioCtx.currentTime;
-    const noteDuration = 0.35;   // 각 음의 길이(초)
-    const noteGap = 0.05;        // 띵과 동 사이 짧은 간격(초)
-    const peakVolume = 0.25;     // 음량 (0~1)
-
-    const playNote = (frequency, startTime) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.value = frequency;
-
-      // Envelope: 빠른 attack, 부드러운 decay (종 같은 느낌)
-      gain.gain.setValueAtTime(0, startTime);
-      gain.gain.linearRampToValueAtTime(peakVolume, startTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      osc.start(startTime);
-      osc.stop(startTime + noteDuration + 0.05);
-    };
-
-    // 띵 (A5)
-    playNote(880, now);
-    // 동 (D5) — 첫 음이 끝날 때쯤 시작
-    playNote(587.33, now + noteDuration + noteGap);
-
-    // 전체 차임 길이 = 두 음 + 갭, 약 750ms
-    return Math.round((noteDuration * 2 + noteGap) * 1000);
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+    return audioCtx;
   }
 
   function speakCall(name) {
     if (!('speechSynthesis' in window)) return;
     speechSynthesis.cancel();
 
-    // 1) 띵동 차임 먼저 재생
-    const chimeDuration = playChime();
+    // 1) 띵동 차임 재생 후, 끝나면 음성 시작
+    playChime().then(() => {
+      // 차임 끝나고 짧은 갭
+      setTimeout(() => {
+        // 이름 글자 사이에 쉼표를 넣어서 또박또박 읽히게 함
+        const spacedName = Array.from(name).join(', ');
+        const text = `${spacedName}, 님, 진료실로 들어오세요.`;
 
-    // 2) 차임이 끝난 뒤 짧은 갭을 두고 음성 안내 시작
-    const gapAfterChime = 300; // 0.3초
-    const speechDelay = chimeDuration + gapAfterChime;
-
-    // 이름 글자 사이에 쉼표를 넣어서 또박또박 천천히 읽히게 함
-    const spacedName = Array.from(name).join(', ');
-    const text = `${spacedName}, 님, 진료실로 들어오세요.`;
-
-    setTimeout(() => {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'ko-KR';
-      u.rate = parseFloat(settings.rate || 0.85);
-      u.pitch = 1;
-      const voice = koreanVoices.find(v => v.name === settings.voiceName);
-      if (voice) u.voice = voice;
-      speechSynthesis.speak(u);
-    }, speechDelay);
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ko-KR';
+        u.rate = parseFloat(settings.rate || 0.85);
+        u.pitch = 1;
+        u.volume = 1.0; // 음성 최대 음량
+        const voice = koreanVoices.find(v => v.name === settings.voiceName);
+        if (voice) u.voice = voice;
+        speechSynthesis.speak(u);
+      }, 250);
+    });
   }
 
   window.testVoice = function() { speakCall('홍길동'); };
